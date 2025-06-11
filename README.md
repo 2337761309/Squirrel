@@ -28,8 +28,8 @@
 
 ```bash
 # 克隆仓库
-git clone https://your-repo/subdomain-checker.git
-cd subdomain-checker
+git clone https://github.com/2337761309/Squirrel
+cd Squirrel
 
 # 构建
 go build
@@ -38,7 +38,7 @@ go build
 或者直接使用go install：
 
 ```bash
-go install github.com/your-username/subdomain-checker@latest
+go install github.com/2337761309/Squirrel@latest
 ```
 
 ## 使用方法
