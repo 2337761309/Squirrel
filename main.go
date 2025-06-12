@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"runtime"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -68,18 +69,30 @@ func main() {
 		}
 	}
 	// 新增：归一化域名，支持 http(s):// 前缀
-	for i, d := range domains {
+	domainMap := make(map[string]bool)
+	var uniqueDomains []string
+	for _, d := range domains {
 		d = strings.TrimSpace(d)
 		if strings.HasPrefix(d, "http://") || strings.HasPrefix(d, "https://") {
 			if u, err := url.Parse(d); err == nil && u.Host != "" {
-				domains[i] = u.Host
+				if !domainMap[u.Host] {
+					domainMap[u.Host] = true
+					uniqueDomains = append(uniqueDomains, u.Host)
+				}
 			} else {
-				domains[i] = d // 解析失败，保留原始
+				if !domainMap[d] {
+					domainMap[d] = true
+					uniqueDomains = append(uniqueDomains, d)
+				}
 			}
 		} else {
-			domains[i] = d
+			if !domainMap[d] {
+				domainMap[d] = true
+				uniqueDomains = append(uniqueDomains, d)
+			}
 		}
 	}
+	domains = uniqueDomains
 	if len(domains) == 0 {
 		fmt.Println("没有找到需要检测的域名")
 		os.Exit(1)
@@ -99,7 +112,11 @@ func main() {
 
 	var screenshotPool *screenshot.ScreenshotPool
 	if cfg.Screenshot || cfg.ScreenshotAlive {
-		screenshotWorkers := cfg.Concurrency / 2
+		// 根据CPU核心数和域名数量动态调整截图工作池大小
+		screenshotWorkers := runtime.NumCPU()
+		if screenshotWorkers > len(domains) {
+			screenshotWorkers = len(domains)
+		}
 		if screenshotWorkers < 1 {
 			screenshotWorkers = 1
 		}

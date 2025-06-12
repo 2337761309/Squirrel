@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>子域名检测结果</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #333; text-align: center; margin-bottom: 30px; }
+        .summary { background: #fff; padding: 15px; border-radius: 5px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .domain-card { background: #fff; margin-bottom: 20px; border-radius: 5px; overflow: hidden; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .domain-header { background: #f0f0f0; padding: 15px; cursor: pointer; }
+        .domain-header h2 { margin: 0; font-size: 18px; }
+        .domain-header a { color: #2056dd; text-decoration: none; transition: color 0.2s; }
+        .domain-header a:hover { color: #1040aa; text-decoration: underline; }
+        .domain-content { padding: 15px; }
+        .domain-info { margin-bottom: 15px; }
+        .domain-info span { font-weight: bold; }
+        .status-alive { color: green; }
+        .status-dead { color: red; }
+        .screenshot-container { width: 100%; text-align: center; margin-top: 15px; }
+        .screenshot-container h3 a { display: inline-block; padding: 8px 15px; background: #2056dd; color: white; text-decoration: none; border-radius: 4px; margin-bottom: 10px; transition: background 0.2s; }
+        .screenshot-container h3 a:hover { background: #1040aa; }
+        .screenshot { max-width: 100%; height: auto; border: 1px solid #ddd; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ddd; }
+        th { background-color: #f2f2f2; }
+        
+        /* 导航菜单样式 */
+        .nav-menu { 
+            display: flex; 
+            justify-content: center; 
+            background: #fff; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin-bottom: 20px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+        }
+        .nav-item { 
+            margin: 0 15px; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: all 0.3s ease; 
+        }
+        .nav-item:hover { 
+            background: #f0f0f0; 
+        }
+        .nav-item.active { 
+            background: #2056dd; 
+            color: white; 
+        }
+        .counter { 
+            display: inline-block; 
+            background: #eee; 
+            color: #333; 
+            border-radius: 50%; 
+            width: 24px; 
+            height: 24px; 
+            text-align: center; 
+            line-height: 24px; 
+            margin-left: 8px; 
+            font-size: 12px; 
+        }
+        .nav-item.active .counter { 
+            background: #fff; 
+            color: #2056dd; 
+        }
+        .hidden { 
+            display: none; 
+        }
+        
+        /* 搜索框样式 */
+        .search-container { 
+            display: flex; 
+            justify-content: center; 
+            margin-bottom: 20px; 
+        }
+        .search-box { 
+            width: 100%; 
+            max-width: 500px; 
+            padding: 10px 15px; 
+            border: 2px solid #ddd; 
+            border-radius: 5px; 
+            font-size: 16px; 
+            transition: border-color 0.3s; 
+        }
+        .search-box:focus { 
+            border-color: #2056dd; 
+            outline: none; 
+        }
+        .search-box::placeholder { 
+            color: #aaa; 
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>子域名检测结果</h1>
+        <div class="summary">
+            <p>共检测 {{.TotalDomains}} 个域名，其中 {{.AliveDomains}} 个存活，{{.DeadDomains}} 个无法访问</p>
+            <p>报告生成时间：{{.ReportTime}}</p>
+        </div>
+        
+        <!-- 导航菜单 -->
+        <div class="nav-menu">
+            <div class="nav-item active" data-filter="all">全部<span class="counter">{{.TotalDomains}}</span></div>
+            <div class="nav-item" data-filter="alive">存活<span class="counter">{{.AliveDomains}}</span></div>
+            <div class="nav-item" data-filter="dead">不存活<span class="counter">{{.DeadDomains}}</span></div>
+        </div>
+        
+        <!-- 搜索框 -->
+        <div class="search-container">
+            <input type="text" class="search-box" placeholder="输入域名关键词或状态码(如200、404等)进行搜索..." id="domainSearch">
+            <p style="text-align: center; color: #666; margin-top: 5px; font-size: 12px;">支持搜索：域名、状态码(如200、404)、状态文本(如存活、禁止访问)</p>
+        </div>
+
+        {{range .Results}}
+        <div class="domain-card domain-{{if .Alive}}alive{{else}}dead{{end}}">
+            <div class="domain-header">
+                <h2><a href="{{.DomainLink}}" target="_blank" rel="noopener noreferrer">{{.Domain}}</a></h2>
+            </div>
+            <div class="domain-content">
+                <div class="domain-info">
+                    <p><span>状态:</span> <span class="{{if .Alive}}status-alive{{else}}status-dead{{end}}">{{.StatusText}}</span></p>
+                    <p><span>状态码:</span> {{.Status}}</p>
+                    <p><span>响应时间:</span> {{.ResponseTime}} ms</p>
+                    <p><span>页面类型:</span> {{.PageType}}</p>
+                    <p><span>页面标题:</span> {{.Title}}</p>
+                    <p><span>消息:</span> {{.Message}}</p>
+                </div>
+
+                {{if .Screenshot}}
+                <div class="screenshot-container">
+                    <h3><a href="{{.DomainLink}}" target="_blank" rel="noopener noreferrer">访问网站</a></h3>
+                    <img class="screenshot" src="screenshots/{{.Screenshot}}" alt="{{.Domain}} 的截图">
+                </div>
+                {{end}}
+
+            </div>
+        </div>
+        {{end}}
+    </div>
+    
+    <!-- JavaScript脚本用于域名过滤 -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // 获取所有导航项和域名卡片
+            const navItems = document.querySelectorAll('.nav-item');
+            const domainCards = document.querySelectorAll('.domain-card');
+            const searchBox = document.getElementById('domainSearch');
+            
+            let currentFilter = 'all';
+            
+            // 为导航项添加点击事件
+            navItems.forEach(item => {
+                item.addEventListener('click', function() {
+                    // 移除所有导航项的active类
+                    navItems.forEach(nav => nav.classList.remove('active'));
+                    
+                    // 为当前点击的导航项添加active类
+                    this.classList.add('active');
+                    
+                    // 获取过滤条件
+                    currentFilter = this.getAttribute('data-filter');
+                    
+                    // 应用过滤和搜索
+                    applyFilters();
+                });
+            });
+            
+            // 为搜索框添加输入事件
+            searchBox.addEventListener('input', function() {
+                applyFilters();
+            });
+            
+            // 应用过滤和搜索
+            function applyFilters() {
+                const searchTerm = searchBox.value.toLowerCase();
+                
+                domainCards.forEach(card => {
+                    const domainText = card.querySelector('h2').textContent.toLowerCase();
+                    const statusCode = card.querySelector('.domain-info p:nth-child(2)').textContent.toLowerCase();
+                    const statusText = card.querySelector('.domain-info p:nth-child(1)').textContent.toLowerCase();
+                    
+                    // 检查域名、状态码或状态文本是否匹配搜索词
+                    const matchesSearch = searchTerm === '' || 
+                                         domainText.includes(searchTerm) || 
+                                         statusCode.includes(searchTerm) ||
+                                         statusText.includes(searchTerm);
+                    
+                    // 检查是否匹配当前过滤条件
+                    let matchesFilter = true;
+                    if (currentFilter === 'alive') {
+                        matchesFilter = card.classList.contains('domain-alive');
+                    } else if (currentFilter === 'dead') {
+                        matchesFilter = card.classList.contains('domain-dead');
+                    }
+                    
+                    // 同时满足搜索和过滤条件才显示
+                    if (matchesSearch && matchesFilter) {
+                        card.classList.remove('hidden');
+                    } else {
+                        card.classList.add('hidden');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

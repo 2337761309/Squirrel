@@ -221,17 +221,19 @@ func CheckDomain(domain string, cfg config.Config, resultChan chan<- Result, scr
 		httpsResult.Message = http.StatusText(resp.StatusCode)
 
 		// 提取页面信息
-		if cfg.ExtractInfo && resp.StatusCode < 400 {
+		if resp.StatusCode < 400 {
 			body, err := io.ReadAll(resp.Body)
 			if err == nil {
 				pageContent := string(body)
-				httpsResult.PageInfo = detectPageType(pageContent)
+				if cfg.ExtractInfo {
+					httpsResult.PageInfo = detectPageType(pageContent)
+				}
 				httpsResult.Title = extractTitle(pageContent)
 			}
 		}
 
 		// 如果需要截图，使用截图工作池
-		if (cfg.Screenshot || (cfg.ScreenshotAlive && httpsResult.Alive)) && screenshotPool != nil {
+		if (cfg.Screenshot || (cfg.ScreenshotAlive && httpsResult.Alive)) && screenshotPool != nil && httpsResult.Alive {
 			// 为网站生成唯一的截图文件名
 			screenFilename := generateScreenshotFilename(httpsDomain)
 
@@ -240,45 +242,22 @@ func CheckDomain(domain string, cfg config.Config, resultChan chan<- Result, scr
 				// 提交截图任务到工作池
 				resultCh := screenshotPool.Submit(httpsDomain, screenFilename, cfg.ScreenshotDir)
 
-				// 不等待结果，先发送域名检测结果
-				go func() {
-					_ = <-resultCh // 使用下划线忽略返回值
-				}()
-
-				// 预设截图路径
-				httpsResult.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
+				// 等待截图结果
+				if screenshotPath := <-resultCh; screenshotPath != "" {
+					// 将完整路径转换为相对路径
+					relPath := filepath.Join("screenshots", filepath.Base(screenshotPath))
+					// 确保使用正斜杠
+					relPath = strings.ReplaceAll(relPath, "\\", "/")
+					httpsResult.Screenshot = relPath
+				}
 			}
 		}
 
 		resultChan <- httpsResult
 		return
-	} else {
-		// HTTPS请求出错
-		httpsResult.Message = err.Error()
-		httpsResult.StatusText = "无法访问"
-
-		// 即使HTTPS请求出错，如果启用了截图功能，也使用截图工作池
-		if cfg.Screenshot && screenshotPool != nil {
-			// 为网站生成唯一的截图文件名
-			screenFilename := generateScreenshotFilename(httpsDomain)
-
-			// 确保截图目录存在
-			if err := os.MkdirAll(cfg.ScreenshotDir, 0755); err == nil {
-				// 提交截图任务到工作池
-				resultCh := screenshotPool.Submit(httpsDomain, screenFilename, cfg.ScreenshotDir)
-
-				// 不等待结果，先发送域名检测结果
-				go func() {
-					_ = <-resultCh // 使用下划线忽略返回值
-				}()
-
-				// 预设截图路径
-				httpsResult.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
-			}
-		}
 	}
 
-	// HTTPS失败，尝试HTTP
+	// HTTPS请求失败，尝试HTTP
 	httpDomain := "http://" + domain
 	checkSingleDomain(httpDomain, cfg, resultChan, screenshotPool)
 }
@@ -318,27 +297,6 @@ func checkSingleDomain(domain string, cfg config.Config, resultChan chan<- Resul
 	if err != nil {
 		result.Message = err.Error()
 		result.StatusText = "无法访问"
-
-		// 即使请求出错，如果启用了截图功能，也使用截图工作池
-		if cfg.Screenshot && screenshotPool != nil {
-			// 为网站生成唯一的截图文件名
-			screenFilename := generateScreenshotFilename(domain)
-
-			// 确保截图目录存在
-			if err := os.MkdirAll(cfg.ScreenshotDir, 0755); err == nil {
-				// 提交截图任务到工作池
-				resultCh := screenshotPool.Submit(domain, screenFilename, cfg.ScreenshotDir)
-
-				// 不等待结果，先发送域名检测结果
-				go func() {
-					_ = <-resultCh // 使用下划线忽略返回值
-				}()
-
-				// 预设截图路径
-				result.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
-			}
-		}
-
 		resultChan <- result
 		return
 	}
@@ -351,17 +309,19 @@ func checkSingleDomain(domain string, cfg config.Config, resultChan chan<- Resul
 	result.Message = http.StatusText(resp.StatusCode)
 
 	// 提取页面信息
-	if cfg.ExtractInfo && resp.StatusCode < 400 {
+	if resp.StatusCode < 400 {
 		body, err := io.ReadAll(resp.Body)
 		if err == nil {
 			pageContent := string(body)
-			result.PageInfo = detectPageType(pageContent)
+			if cfg.ExtractInfo {
+				result.PageInfo = detectPageType(pageContent)
+			}
 			result.Title = extractTitle(pageContent)
 		}
 	}
 
 	// 如果需要截图，使用截图工作池
-	if (cfg.Screenshot || (cfg.ScreenshotAlive && result.Alive)) && screenshotPool != nil {
+	if screenshotPool != nil && result.Alive && (cfg.Screenshot || cfg.ScreenshotAlive) {
 		// 为网站生成唯一的截图文件名
 		screenFilename := generateScreenshotFilename(domain)
 
@@ -370,13 +330,14 @@ func checkSingleDomain(domain string, cfg config.Config, resultChan chan<- Resul
 			// 提交截图任务到工作池
 			resultCh := screenshotPool.Submit(domain, screenFilename, cfg.ScreenshotDir)
 
-			// 不等待结果，先发送域名检测结果
-			go func() {
-				_ = <-resultCh // 使用下划线忽略返回值
-			}()
-
-			// 预设截图路径
-			result.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
+			// 等待截图结果
+			if screenshotPath := <-resultCh; screenshotPath != "" {
+				// 将完整路径转换为相对路径
+				relPath := filepath.Join("screenshots", filepath.Base(screenshotPath))
+				// 确保使用正斜杠
+				relPath = strings.ReplaceAll(relPath, "\\", "/")
+				result.Screenshot = relPath
+			}
 		}
 	}
 
@@ -478,26 +439,14 @@ func containsAny(content string, patterns []string) bool {
 	return false
 }
 
-// 为域名生成唯一的截图文件名
+// 生成截图文件名
 func generateScreenshotFilename(domain string) string {
-	// 移除协议部分
-	domain = strings.TrimPrefix(domain, "http://")
-	domain = strings.TrimPrefix(domain, "https://")
-	// 替换不允许在文件名中使用的字符
-	domain = strings.ReplaceAll(domain, "/", "_")
-	domain = strings.ReplaceAll(domain, ":", "_")
-	domain = strings.ReplaceAll(domain, "?", "_")
-	domain = strings.ReplaceAll(domain, "&", "_")
-	domain = strings.ReplaceAll(domain, "=", "_")
-	domain = strings.ReplaceAll(domain, "*", "_")
-	domain = strings.ReplaceAll(domain, "\"", "_")
-	domain = strings.ReplaceAll(domain, "<", "_")
-	domain = strings.ReplaceAll(domain, ">", "_")
-	domain = strings.ReplaceAll(domain, "|", "_")
-
-	// 生成时间戳后缀确保唯一性
-	timestamp := time.Now().UnixNano()
-	return fmt.Sprintf("%s_%d.png", domain, timestamp)
+	// 将域名中的特殊字符替换为下划线
+	filename := strings.ReplaceAll(domain, "://", "_")
+	filename = strings.ReplaceAll(filename, ".", "_")
+	filename = strings.ReplaceAll(filename, ":", "_")
+	filename = strings.ReplaceAll(filename, "/", "_")
+	return filename + ".png"
 }
 
 // 生成错误图片（当无法截图时）
@@ -527,13 +476,6 @@ func generateErrorImage(filename string, screenshotDir string) error {
 
 	// 创建图片对象
 	dc := gg.NewContextForRGBA(img)
-
-	// 设置字体 - 使用默认字体，不尝试加载自定义字体
-	// gg库会自动使用可用的默认字体
-	if err := dc.LoadFontFace("", 30); err != nil {
-		// 如果加载字体失败，只记录错误，继续执行
-		fmt.Printf("加载字体失败: %v，将使用简单文本\n", err)
-	}
 
 	// 设置文本颜色
 	dc.SetColor(fontColor)
