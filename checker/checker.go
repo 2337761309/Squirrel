@@ -1,7 +1,6 @@
 package checker
 
 import (
-	"bufio"
 	"context"
 	"fmt"
 	"image"
@@ -21,7 +20,6 @@ import (
 
 	"github.com/chromedp/chromedp"
 	"github.com/fogleman/gg"
-	"github.com/xuri/excelize/v2"
 )
 
 // 子域名检测结果
@@ -223,17 +221,19 @@ func CheckDomain(domain string, cfg config.Config, resultChan chan<- Result, scr
 		httpsResult.Message = http.StatusText(resp.StatusCode)
 
 		// 提取页面信息
-		if cfg.ExtractInfo && resp.StatusCode < 400 {
+		if resp.StatusCode < 400 {
 			body, err := io.ReadAll(resp.Body)
 			if err == nil {
 				pageContent := string(body)
-				httpsResult.PageInfo = detectPageType(pageContent)
+				if cfg.ExtractInfo {
+					httpsResult.PageInfo = detectPageType(pageContent)
+				}
 				httpsResult.Title = extractTitle(pageContent)
 			}
 		}
 
 		// 如果需要截图，使用截图工作池
-		if (cfg.Screenshot || (cfg.ScreenshotAlive && httpsResult.Alive)) && screenshotPool != nil {
+		if (cfg.Screenshot || (cfg.ScreenshotAlive && httpsResult.Alive)) && screenshotPool != nil && httpsResult.Alive {
 			// 为网站生成唯一的截图文件名
 			screenFilename := generateScreenshotFilename(httpsDomain)
 
@@ -242,45 +242,22 @@ func CheckDomain(domain string, cfg config.Config, resultChan chan<- Result, scr
 				// 提交截图任务到工作池
 				resultCh := screenshotPool.Submit(httpsDomain, screenFilename, cfg.ScreenshotDir)
 
-				// 不等待结果，先发送域名检测结果
-				go func() {
-					_ = <-resultCh // 使用下划线忽略返回值
-				}()
-
-				// 预设截图路径
-				httpsResult.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
+				// 等待截图结果
+				if screenshotPath := <-resultCh; screenshotPath != "" {
+					// 将完整路径转换为相对路径
+					relPath := filepath.Join("screenshots", filepath.Base(screenshotPath))
+					// 确保使用正斜杠
+					relPath = strings.ReplaceAll(relPath, "\\", "/")
+					httpsResult.Screenshot = relPath
+				}
 			}
 		}
 
 		resultChan <- httpsResult
 		return
-	} else {
-		// HTTPS请求出错
-		httpsResult.Message = err.Error()
-		httpsResult.StatusText = "无法访问"
-
-		// 即使HTTPS请求出错，如果启用了截图功能，也使用截图工作池
-		if cfg.Screenshot && screenshotPool != nil {
-			// 为网站生成唯一的截图文件名
-			screenFilename := generateScreenshotFilename(httpsDomain)
-
-			// 确保截图目录存在
-			if err := os.MkdirAll(cfg.ScreenshotDir, 0755); err == nil {
-				// 提交截图任务到工作池
-				resultCh := screenshotPool.Submit(httpsDomain, screenFilename, cfg.ScreenshotDir)
-
-				// 不等待结果，先发送域名检测结果
-				go func() {
-					_ = <-resultCh // 使用下划线忽略返回值
-				}()
-
-				// 预设截图路径
-				httpsResult.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
-			}
-		}
 	}
 
-	// HTTPS失败，尝试HTTP
+	// HTTPS请求失败，尝试HTTP
 	httpDomain := "http://" + domain
 	checkSingleDomain(httpDomain, cfg, resultChan, screenshotPool)
 }
@@ -320,27 +297,6 @@ func checkSingleDomain(domain string, cfg config.Config, resultChan chan<- Resul
 	if err != nil {
 		result.Message = err.Error()
 		result.StatusText = "无法访问"
-
-		// 即使请求出错，如果启用了截图功能，也使用截图工作池
-		if cfg.Screenshot && screenshotPool != nil {
-			// 为网站生成唯一的截图文件名
-			screenFilename := generateScreenshotFilename(domain)
-
-			// 确保截图目录存在
-			if err := os.MkdirAll(cfg.ScreenshotDir, 0755); err == nil {
-				// 提交截图任务到工作池
-				resultCh := screenshotPool.Submit(domain, screenFilename, cfg.ScreenshotDir)
-
-				// 不等待结果，先发送域名检测结果
-				go func() {
-					_ = <-resultCh // 使用下划线忽略返回值
-				}()
-
-				// 预设截图路径
-				result.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
-			}
-		}
-
 		resultChan <- result
 		return
 	}
@@ -353,17 +309,19 @@ func checkSingleDomain(domain string, cfg config.Config, resultChan chan<- Resul
 	result.Message = http.StatusText(resp.StatusCode)
 
 	// 提取页面信息
-	if cfg.ExtractInfo && resp.StatusCode < 400 {
+	if resp.StatusCode < 400 {
 		body, err := io.ReadAll(resp.Body)
 		if err == nil {
 			pageContent := string(body)
-			result.PageInfo = detectPageType(pageContent)
+			if cfg.ExtractInfo {
+				result.PageInfo = detectPageType(pageContent)
+			}
 			result.Title = extractTitle(pageContent)
 		}
 	}
 
 	// 如果需要截图，使用截图工作池
-	if (cfg.Screenshot || (cfg.ScreenshotAlive && result.Alive)) && screenshotPool != nil {
+	if screenshotPool != nil && result.Alive && (cfg.Screenshot || cfg.ScreenshotAlive) {
 		// 为网站生成唯一的截图文件名
 		screenFilename := generateScreenshotFilename(domain)
 
@@ -372,13 +330,14 @@ func checkSingleDomain(domain string, cfg config.Config, resultChan chan<- Resul
 			// 提交截图任务到工作池
 			resultCh := screenshotPool.Submit(domain, screenFilename, cfg.ScreenshotDir)
 
-			// 不等待结果，先发送域名检测结果
-			go func() {
-				_ = <-resultCh // 使用下划线忽略返回值
-			}()
-
-			// 预设截图路径
-			result.Screenshot = filepath.Join(cfg.ScreenshotDir, screenFilename)
+			// 等待截图结果
+			if screenshotPath := <-resultCh; screenshotPath != "" {
+				// 将完整路径转换为相对路径
+				relPath := filepath.Join("screenshots", filepath.Base(screenshotPath))
+				// 确保使用正斜杠
+				relPath = strings.ReplaceAll(relPath, "\\", "/")
+				result.Screenshot = relPath
+			}
 		}
 	}
 
@@ -480,263 +439,14 @@ func containsAny(content string, patterns []string) bool {
 	return false
 }
 
-// 从文件中读取域名
-func readDomainsFromFile(filename string) ([]string, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var domains []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		domain := strings.TrimSpace(scanner.Text())
-		if domain != "" && !strings.HasPrefix(domain, "#") {
-			domains = append(domains, domain)
-		}
-	}
-
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-
-	return domains, nil
-}
-
-// 保存结果到文件
-func saveResultsToFile(results []Result, filename string) error {
-	file, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	// 写入标题行
-	fmt.Fprintf(file, "域名,状态,状态码,响应时间(毫秒),页面类型,页面标题,消息\n")
-
-	// 写入数据行
-	for _, result := range results {
-		pageType := ""
-		if result.PageInfo != nil {
-			pageType = result.PageInfo.Type
-		}
-
-		fmt.Fprintf(file, "%s,%s,%d,%.2f,%s,%s,%s\n",
-			result.Domain,
-			result.StatusText,
-			result.Status,
-			float64(result.ResponseTime.Milliseconds()),
-			pageType,
-			strings.ReplaceAll(result.Title, ",", " "),   // 避免标题中的逗号影响CSV格式
-			strings.ReplaceAll(result.Message, ",", " ")) // 避免消息中的逗号影响CSV格式
-	}
-
-	return nil
-}
-
-// 保存结果到 Excel 文件
-func saveResultsToExcel(results []Result, filename string, onlyAlive bool) error {
-	// 创建输出目录（如果不存在）
-	outputDir := filepath.Dir(filename)
-	if outputDir != "" && outputDir != "." {
-		if err := os.MkdirAll(outputDir, 0755); err != nil {
-			return fmt.Errorf("创建输出目录失败: %v", err)
-		}
-	}
-
-	// 创建一个新的 Excel 文件
-	f := excelize.NewFile()
-	defer func() {
-		if err := f.Close(); err != nil {
-			fmt.Printf("关闭 Excel 文件时出错: %s\n", err)
-		}
-	}()
-
-	// 设置表头
-	sheetName := "子域名检测结果"
-	f.SetSheetName("Sheet1", sheetName)
-	headers := []string{"域名", "状态", "状态码", "响应时间(毫秒)", "页面类型", "页面标题", "消息", "截图"}
-	for i, header := range headers {
-		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
-		f.SetCellValue(sheetName, cell, header)
-	}
-
-	// 创建截图工作表
-	screenshotSheet := "页面截图"
-	f.NewSheet(screenshotSheet)
-	f.SetCellValue(screenshotSheet, "A1", "域名")
-	f.SetCellValue(screenshotSheet, "B1", "截图")
-
-	// 设置表头样式
-	headerStyle, _ := f.NewStyle(&excelize.Style{
-		Font: &excelize.Font{Bold: true},
-		Fill: excelize.Fill{
-			Type:    "pattern",
-			Color:   []string{"#D9D9D9"},
-			Pattern: 1,
-		},
-		Alignment: &excelize.Alignment{
-			Horizontal: "center",
-			Vertical:   "center",
-		},
-		Border: []excelize.Border{
-			{Type: "left", Color: "#000000", Style: 1},
-			{Type: "right", Color: "#000000", Style: 1},
-			{Type: "top", Color: "#000000", Style: 1},
-			{Type: "bottom", Color: "#000000", Style: 1},
-		},
-	})
-	f.SetCellStyle(sheetName, "A1", fmt.Sprintf("%c1", 'A'+len(headers)-1), headerStyle)
-	f.SetCellStyle(screenshotSheet, "A1", "B1", headerStyle)
-
-	// 写入数据行
-	row := 2           // 从第二行开始
-	screenshotRow := 2 // 截图表从第二行开始
-	for _, result := range results {
-		// 如果只导出存活的域名，则跳过非存活的
-		if onlyAlive && !result.Alive {
-			continue
-		}
-
-		pageType := ""
-		if result.PageInfo != nil {
-			pageType = result.PageInfo.Type
-		}
-
-		// 设置单元格样式
-		contentStyle, _ := f.NewStyle(&excelize.Style{
-			Border: []excelize.Border{
-				{Type: "left", Color: "#000000", Style: 1},
-				{Type: "right", Color: "#000000", Style: 1},
-				{Type: "top", Color: "#000000", Style: 1},
-				{Type: "bottom", Color: "#000000", Style: 1},
-			},
-		})
-
-		// 写入一行数据到主表
-		f.SetCellValue(sheetName, fmt.Sprintf("A%d", row), result.Domain)
-		f.SetCellValue(sheetName, fmt.Sprintf("B%d", row), result.StatusText)
-		f.SetCellValue(sheetName, fmt.Sprintf("C%d", row), result.Status)
-		f.SetCellValue(sheetName, fmt.Sprintf("D%d", row), float64(result.ResponseTime.Milliseconds()))
-		f.SetCellValue(sheetName, fmt.Sprintf("E%d", row), pageType)
-		f.SetCellValue(sheetName, fmt.Sprintf("F%d", row), result.Title)
-		f.SetCellValue(sheetName, fmt.Sprintf("G%d", row), result.Message)
-
-		// 应用内容样式
-		f.SetCellStyle(sheetName, fmt.Sprintf("A%d", row), fmt.Sprintf("G%d", row), contentStyle)
-
-		// 处理截图
-		if result.Screenshot != "" {
-			// 在主表中添加"查看截图"超链接
-			f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), "查看截图")
-			linkStyle, _ := f.NewStyle(&excelize.Style{
-				Font: &excelize.Font{
-					Color:     "#0563C1",
-					Underline: "single",
-				},
-				Border: []excelize.Border{
-					{Type: "left", Color: "#000000", Style: 1},
-					{Type: "right", Color: "#000000", Style: 1},
-					{Type: "top", Color: "#000000", Style: 1},
-					{Type: "bottom", Color: "#000000", Style: 1},
-				},
-				Alignment: &excelize.Alignment{
-					Horizontal: "center",
-					Vertical:   "center",
-				},
-			})
-			f.SetCellStyle(sheetName, fmt.Sprintf("H%d", row), fmt.Sprintf("H%d", row), linkStyle)
-			// 设置超链接到截图工作表的对应行
-			f.SetCellHyperLink(sheetName, fmt.Sprintf("H%d", row), fmt.Sprintf("'%s'!A%d", screenshotSheet, screenshotRow), "Location")
-
-			// 在截图表中添加域名和截图
-			f.SetCellValue(screenshotSheet, fmt.Sprintf("A%d", screenshotRow), result.Domain)
-
-			// 如果文件存在，添加图片
-			if _, err := os.Stat(result.Screenshot); err == nil {
-				// 设置行高以适应图片
-				f.SetRowHeight(screenshotSheet, screenshotRow, 300)
-				// 添加图片
-				if err := f.AddPicture(screenshotSheet, fmt.Sprintf("B%d", screenshotRow), result.Screenshot, &excelize.GraphicOptions{
-					ScaleX:          0.3,  // 将图片缩小到30%（原来是10%）
-					ScaleY:          0.3,  // 将图片缩小到30%（原来是10%）
-					LockAspectRatio: true, // 锁定宽高比
-					Positioning:     "oneCell",
-				}); err != nil {
-					fmt.Printf("添加图片到Excel时出错: %s\n", err)
-				}
-			} else {
-				f.SetCellValue(screenshotSheet, fmt.Sprintf("B%d", screenshotRow), "无法获取截图")
-			}
-
-			// 设置单元格样式
-			f.SetCellStyle(screenshotSheet, fmt.Sprintf("A%d", screenshotRow), fmt.Sprintf("A%d", screenshotRow), contentStyle)
-			f.SetCellStyle(screenshotSheet, fmt.Sprintf("B%d", screenshotRow), fmt.Sprintf("B%d", screenshotRow), contentStyle)
-
-			screenshotRow++
-		} else {
-			f.SetCellValue(sheetName, fmt.Sprintf("H%d", row), "无截图")
-			f.SetCellStyle(sheetName, fmt.Sprintf("H%d", row), fmt.Sprintf("H%d", row), contentStyle)
-		}
-
-		row++
-	}
-
-	// 自动调整列宽
-	for i := range headers {
-		col, _ := excelize.ColumnNumberToName(i + 1)
-		f.SetColWidth(sheetName, col, col, 20)
-	}
-	f.SetColWidth(screenshotSheet, "A", "A", 40)
-	f.SetColWidth(screenshotSheet, "B", "B", 200) // 加宽截图列以便更好地显示截图（原来是150）
-
-	// 冻结表头
-	f.SetPanes(sheetName, &excelize.Panes{
-		Freeze:      true,
-		Split:       false,
-		XSplit:      0,
-		YSplit:      1,
-		TopLeftCell: "A2",
-		ActivePane:  "bottomLeft",
-	})
-	f.SetPanes(screenshotSheet, &excelize.Panes{
-		Freeze:      true,
-		Split:       false,
-		XSplit:      0,
-		YSplit:      1,
-		TopLeftCell: "A2",
-		ActivePane:  "bottomLeft",
-	})
-
-	// 保存文件
-	if err := f.SaveAs(filename); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// 为域名生成唯一的截图文件名
+// 生成截图文件名
 func generateScreenshotFilename(domain string) string {
-	// 移除协议部分
-	domain = strings.TrimPrefix(domain, "http://")
-	domain = strings.TrimPrefix(domain, "https://")
-	// 替换不允许在文件名中使用的字符
-	domain = strings.ReplaceAll(domain, "/", "_")
-	domain = strings.ReplaceAll(domain, ":", "_")
-	domain = strings.ReplaceAll(domain, "?", "_")
-	domain = strings.ReplaceAll(domain, "&", "_")
-	domain = strings.ReplaceAll(domain, "=", "_")
-	domain = strings.ReplaceAll(domain, "*", "_")
-	domain = strings.ReplaceAll(domain, "\"", "_")
-	domain = strings.ReplaceAll(domain, "<", "_")
-	domain = strings.ReplaceAll(domain, ">", "_")
-	domain = strings.ReplaceAll(domain, "|", "_")
-
-	// 生成时间戳后缀确保唯一性
-	timestamp := time.Now().UnixNano()
-	return fmt.Sprintf("%s_%d.png", domain, timestamp)
+	// 将域名中的特殊字符替换为下划线
+	filename := strings.ReplaceAll(domain, "://", "_")
+	filename = strings.ReplaceAll(filename, ".", "_")
+	filename = strings.ReplaceAll(filename, ":", "_")
+	filename = strings.ReplaceAll(filename, "/", "_")
+	return filename + ".png"
 }
 
 // 生成错误图片（当无法截图时）
@@ -767,13 +477,6 @@ func generateErrorImage(filename string, screenshotDir string) error {
 	// 创建图片对象
 	dc := gg.NewContextForRGBA(img)
 
-	// 设置字体 - 使用默认字体，不尝试加载自定义字体
-	// gg库会自动使用可用的默认字体
-	if err := dc.LoadFontFace("", 30); err != nil {
-		// 如果加载字体失败，只记录错误，继续执行
-		fmt.Printf("加载字体失败: %v，将使用简单文本\n", err)
-	}
-
 	// 设置文本颜色
 	dc.SetColor(fontColor)
 
@@ -793,12 +496,4 @@ func generateErrorImage(filename string, screenshotDir string) error {
 	}
 
 	return nil
-}
-
-// 截断字符串到指定长度
-func truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen-3] + "..."
 }

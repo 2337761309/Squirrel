@@ -107,20 +107,20 @@ func TakeScreenshotWithContext(ctx context.Context, url string, screenshotPath s
 	}
 
 	// 设置超时
-	taskCtx, cancel := context.WithTimeout(ctx, 20*time.Second)
+	taskCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
 
 	// 执行截图
 	tasks := chromedp.Tasks{
 		chromedp.Navigate(url),
 		// 等待页面加载
-		chromedp.Sleep(2 * time.Second),
-
+		chromedp.Sleep(3 * time.Second),
+		// 等待页面稳定
+		chromedp.WaitReady("body", chromedp.ByQuery),
 		// 获取页面滚动高度
 		chromedp.Evaluate(`Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)`, nil),
-
 		// 使用FullScreenshot
-		chromedp.FullScreenshot(&buf, 90), // 稍微降低质量以提高性能
+		chromedp.FullScreenshot(&buf, 80), // 降低质量以提高性能
 	}
 
 	if err := chromedp.Run(taskCtx, tasks); err != nil {
@@ -180,13 +180,6 @@ func GenerateErrorImage(filename string, screenshotDir string) error {
 
 	// 创建图片对象
 	dc := gg.NewContextForRGBA(img)
-
-	// 设置字体 - 使用默认字体，不尝试加载自定义字体
-	// gg库会自动使用可用的默认字体
-	if err := dc.LoadFontFace("", 30); err != nil {
-		// 如果加载字体失败，只记录错误，继续执行
-		fmt.Printf("加载字体失败: %v，将使用简单文本\n", err)
-	}
 
 	// 设置文本颜色
 	dc.SetColor(fontColor)
