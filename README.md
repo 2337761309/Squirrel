@@ -32,7 +32,15 @@ git clone https://github.com/2337761309/Squirrel
 cd Squirrel
 
 # 构建
+# Windows
 go build -o squirrel.exe
+
+# Linux/macOS
+chmod +x build.sh
+./build.sh
+
+# or
+go build -o squirrel
 ```
 
 或者直接使用go install：
