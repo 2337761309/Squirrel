@@ -32,7 +32,7 @@ git clone https://github.com/2337761309/Squirrel
 cd Squirrel
 
 # 构建
-go build
+go build -o squirrel.exe
 ```
 
 或者直接使用go install：
@@ -46,7 +46,7 @@ go install github.com/2337761309/Squirrel@latest
 ### 命令行参数
 
 ```
-用法: subdomain-checker [选项] <域名列表文件或逗号分隔的域名列表>
+用法: squirrel [选项] <域名列表文件或逗号分隔的域名列表>
 
 选项:
   -concurrency int
@@ -93,85 +93,85 @@ sub2.example.com
 然后运行：
 
 ```bash
-./subdomain-checker domains.txt
+./squirrel domains.txt
 ```
 
 ### 直接指定域名列表
 
 ```bash
-./subdomain-checker example.com,sub1.example.com,sub2.example.com
+./squirrel example.com,sub1.example.com,sub2.example.com
 ```
 
 ### 自定义并发和超时
 
 ```bash
-./subdomain-checker -concurrency 20 -timeout 5 domains.txt
+./squirrel -concurrency 20 -timeout 5 domains.txt
 ```
 
 ### 显示响应时间并输出详细信息
 
 ```bash
-./subdomain-checker -time -verbose domains.txt
+./squirrel -time -verbose domains.txt
 ```
 
 ### 保存结果到CSV文件
 
 ```bash
-./subdomain-checker -output results.csv domains.txt
+./squirrel -output results.csv domains.txt
 ```
 
 ### 保存结果到Excel文件
 
 ```bash
-./subdomain-checker -excel results.xlsx domains.txt
+./squirrel -excel results.xlsx domains.txt
 ```
 
 ### 只导出存活的域名到Excel
 
 ```bash
-./subdomain-checker -excel alive_domains.xlsx -only-alive domains.txt
+./squirrel -excel alive_domains.xlsx -only-alive domains.txt
 ```
 
 ### 截图所有网页（包括错误页面）并保存到Excel
 
 ```bash
-./subdomain-checker -excel screenshots.xlsx -screenshot domains.txt
+./squirrel -excel screenshots.xlsx -screenshot domains.txt
 ```
 
 ### 只截图存活网页并保存到Excel
 
 ```bash
-./subdomain-checker -excel screenshots.xlsx -screenshot-alive domains.txt
+./squirrel -excel screenshots.xlsx -screenshot-alive domains.txt
 ```
 
 ### 截图并只导出存活域名
 
 ```bash
-./subdomain-checker -excel screenshots.xlsx -screenshot-alive -only-alive domains.txt
+./squirrel -excel screenshots.xlsx -screenshot-alive -only-alive domains.txt
 ```
 
 ### 生成包含截图的HTML报告
 
 ```bash
-./subdomain-checker -screenshot -simple-html index.html domains.txt
+./squirrel -screenshot -simple-html index.html domains.txt
 ```
 
 ### 生成只包含存活网站截图的HTML报告
 
 ```bash
-./subdomain-checker -screenshot-alive -simple-html alive-sites.html domains.txt
+./squirrel -screenshot-alive -simple-html alive-sites.html domains.txt
 ```
 
 ### 提取页面重要信息
 
 ```bash
-./subdomain-checker -extract domains.txt
+./squirrel -extract domains.txt
 ```
 
 与详细输出组合使用，获取更多信息：
 
 ```bash
-./subdomain-checker -extract -verbose domains.txt
+./squirrel -extract -verbose domains.txt
 ```
 
 ### 完整的命令示例
@@ -179,7 +179,7 @@ sub2.example.com
 以下示例展示了使用所有主要功能的命令：
 
 ```bash
-./subdomain-checker -concurrency 30 -timeout 15 -extract -follow -time -verbose -excel results.xlsx -screenshot-alive -only-alive domains.txt
+./squirrel -concurrency 30 -timeout 15 -extract -follow -time -verbose -excel results.xlsx -screenshot-alive -only-alive domains.txt
 ```
 
 这个命令将：
@@ -201,13 +201,13 @@ sub2.example.com
 1. **截图所有网页** (`-screenshot`): 不管网站状态如何，都会对每个域名进行截图，包括返回404、403等错误状态码的页面，甚至是连接失败的页面也会生成错误截图。适用于希望全面了解所有域名的情况。
 
 ```bash
-./subdomain-checker -excel all-screenshots.xlsx -screenshot domains.txt
+./squirrel -excel all-screenshots.xlsx -screenshot domains.txt
 ```
 
 2. **只截图存活网页** (`-screenshot-alive`): 只对存活的网站（状态码<400，如200、301、302等）进行截图。适用于只关注可访问的网站。
 
 ```bash
-./subdomain-checker -excel alive-screenshots.xlsx -screenshot-alive domains.txt
+./squirrel -excel alive-screenshots.xlsx -screenshot-alive domains.txt
 ```
 
 ## 输出示例

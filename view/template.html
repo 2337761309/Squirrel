@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="utf-8">
-    <title>子域名检测结果</title>
+    <title>检测结果</title>
     <style>
         body { 
             font-family: Arial, sans-serif; 
@@ -293,14 +293,59 @@
                 margin: 5px;
             }
         }
+
+        .summary {
+            display: flex;
+            justify-content: space-around;
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .summary-item {
+            text-align: center;
+            padding: 0 20px;
+        }
+        .summary-label {
+            display: block;
+            color: #666;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .summary-value {
+            display: block;
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+        }
+        .summary-value.status-alive {
+            color: #4CAF50;
+        }
+        .summary-value.status-dead {
+            color: #F44336;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>子域名检测结果</h1>
         <div class="summary">
-            <p>共检测 {{.TotalDomains}} 个域名，其中 {{.AliveDomains}} 个存活，{{.DeadDomains}} 个无法访问</p>
-            <p>报告生成时间：{{.ReportTime}}</p>
+            <div class="summary-item">
+                <span class="summary-label">检测总数</span>
+                <span class="summary-value">{{.TotalDomains}}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">存活数量</span>
+                <span class="summary-value status-alive">{{.AliveDomains}}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">无法访问</span>
+                <span class="summary-value status-dead">{{.DeadDomains}}</span>
+            </div>
+            <div class="summary-item">
+                <span class="summary-label">生成时间</span>
+                <span class="summary-value">{{.ReportTime}}</span>
+            </div>
         </div>
         
         <!-- 导航菜单 -->
