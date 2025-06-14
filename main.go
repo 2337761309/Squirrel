@@ -45,7 +45,7 @@ func main() {
 	flag.Parse()
 
 	if flag.NArg() < 1 {
-		fmt.Println("用法: subdomain-checker [选项] <域名列表文件或逗号分隔的域名列表>")
+		fmt.Println("用法: squirrel [选项] <域名列表文件或逗号分隔的域名列表>")
 		fmt.Println("\n选项:")
 		flag.PrintDefaults()
 		os.Exit(1)

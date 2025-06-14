@@ -1,6 +1,9 @@
-subdomain-checker.exe
+subdomain-checker*
+squirrel*
 results.xlsx
 domain.txt
 index.html
 screenshots/
 .vscode/
+output/
+dist/

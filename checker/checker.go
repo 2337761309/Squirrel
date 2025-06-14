@@ -233,7 +233,7 @@ func CheckDomain(domain string, cfg config.Config, resultChan chan<- Result, scr
 		}
 
 		// 如果需要截图，使用截图工作池
-		if (cfg.Screenshot || (cfg.ScreenshotAlive && httpsResult.Alive)) && screenshotPool != nil && httpsResult.Alive {
+		if screenshotPool != nil && (cfg.Screenshot || cfg.ScreenshotAlive) {
 			// 为网站生成唯一的截图文件名
 			screenFilename := generateScreenshotFilename(httpsDomain)
 
@@ -321,7 +321,7 @@ func checkSingleDomain(domain string, cfg config.Config, resultChan chan<- Resul
 	}
 
 	// 如果需要截图，使用截图工作池
-	if screenshotPool != nil && result.Alive && (cfg.Screenshot || cfg.ScreenshotAlive) {
+	if screenshotPool != nil && (cfg.Screenshot || cfg.ScreenshotAlive) {
 		// 为网站生成唯一的截图文件名
 		screenFilename := generateScreenshotFilename(domain)
 
